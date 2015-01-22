@@ -59,6 +59,14 @@
   [source-router]
   (make-message source-router :announcement nil))
 
+(defn initiate-exchange
+  [source-router]
+  (make-message source-router :exchange-start))
+
+(defn complete-exchange
+  [source-router]
+  (make-message source-router :exchange-end))
+
 (defn discovery!
   [source-router]
   (s/put!

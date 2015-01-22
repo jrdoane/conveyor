@@ -1,19 +1,21 @@
 # Conveyor
+![Conveyor belt image](http://www.wpclipart.com/working/factory/conveyor_belt.png)
 
 ## What is it?
-
-A Clojure library designed to facilitate commuication between human entities
-using computer intermediaries. This library will help describe a way for
-all of these components to work together.
+A Clojure library to enable different entities (or routers) to communicate with
+eachother by passing messages over an n-sized graph while letting two endpoints
+connected to different servers to communicate with eachother between any number
+of intermediate routers.
 
 ## What will it use?
 Streams! Manifold will be at the very heart of this library. Nothing about
 individual messages can be handled in tandem efficently, but entire messages can
-be. As a result, the flow of messages between state changes and transmission
-will occur as streams. Beginning to end.
+be. As a result, the entire process can broken down into a pipeline which can be
+processed in parallel at the expensive of some potentnial latency. The goal of
+this library is to learn more about Manifold and if pipelining using streams at
+the software level can have any tangible effect on scalibility and performance.
 
-There is a hope that Transit will be used to send data over the wire to other
-servers and clients as well, but one step at a time.
+This is a proof-of-concept/brain-dump kind of library.
 
 ## Usage
 
