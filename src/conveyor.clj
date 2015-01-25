@@ -1,102 +1,62 @@
 (ns conveyor
-  (:require [manifold.stream :as s]))
+  (:require
+    [conveyor.message :as msg]
+    [manifold.stream :as s]))
 
 (defn router-shell
   [router-name]
   {:name router-name
-   :uuid-list (vec (repeatedly 3 #(str (java.util.UUID/randomUUID))))
+   :uuid (str (java.util.UUID/randomUUID))
    :streams
    {:incoming (s/stream 32)
-    :announcement (s/stream 32)
-    :discovery (s/stream 32)
     :broadcast (s/stream 32)
     :attached (atom {})}})
 
-(defn connect-announcements!
-  [router-map]
+(defn connect-message-type
+  [router-map message-type]
   (let
-    [istream (get-in router-map [:streams :incoming])
-     astream (get-in router-map [:streams :announcement])]
+    [a (get-in router-map [:streams :incoming])
+     b (s/stream 32)]
     (s/connect-via
-      istream
+      a
       (fn [i]
-        (when (= (:type i) :announcement)
-          (s/put! astream i)))
-      astream)
-    router-map))
-
-(defn connect-discoveries!
-  [router-map]
-  (let
-    [istream (get-in router-map [:streams :incoming])
-     dstream (get-in router-map [:streams :discovery])]
-    (s/connect-via
-      istream
-      (fn [i]
-        (when (= (:type i) :discovery)
-          (s/put! dstream i)))
-      dstream)
-    router-map))
+        (when (= (:type i) message-type)
+          (s/put! b i)))
+      b)
+    (assoc-in router-map [:streams message-type] b)))
 
 (defn make-router
   [router-name]
   (-> (router-shell router-name)
-      connect-discoveries!
-      connect-announcements!))
+      (connect-message-type :discovery)
+      (connect-message-type :announcement)))
 
-(defn make-message
-  [source-router message-type message]
-  {:type message-type
-   :router-uuid-list (:uuid-list source-router)
-   :router-stack []
-   :message message})
-
-(defn make-discovery
-  [source-router]
-  (make-message source-router :discovery nil))
-
-(defn make-announcement
-  [source-router]
-  (make-message source-router :announcement nil))
-
-(defn initiate-exchange
-  [source-router]
-  (make-message source-router :exchange-start))
-
-(defn complete-exchange
-  [source-router]
-  (make-message source-router :exchange-end))
-
-(defn discovery!
-  [source-router]
-  (s/put!
-    (get-in source-router [:streams :broadcast])
-    (make-discovery source-router)))
-
-(defn announce!
-  [source-router]
-  (s/put!
-    (get-in source-router [:streams :broadcast])
-    (make-announcement source-router)))
-
-(defn attach!
-  [source-router destination-stream]
-(s/put!
-    destination-stream
-    (make-announcement source-router))
-  (s/connect
-    (get-in source-router [:streams :broadcast])
-    destination-stream)
+(defn add-remote-router!
+  [src-router dest-uuid duplex-stream]
   (swap!
-    (get-in source-router [:streams :attached])
-    conj [ destination-stream])
-  true)
+    (get-in src-router [:streams :attached])
+    conj [dest-uuid duplex-stream])
+  (s/connect duplex-stream (get-in src-router [:streams :incoming]))
+  (s/connect (get-in src-router [:streams :broadcast]) duplex-stream))
+
+(defn attach-local-routers!
+  [src-router dest-router]
+  (let [src-incoming-stream (s/stream 32)
+        dest-incoming-stream (s/stream 32)
+        src-duplex-stream (s/splice dest-incoming-stream src-incoming-stream)
+        dest-duplex-stream (s/splice src-incoming-stream dest-incoming-stream)
+        src-uuid (:uuid src-router) 
+        dest-uuid (:uuid dest-router)]
+    (add-remote-router! src-router dest-uuid src-duplex-stream)
+    (add-remote-router! dest-router src-uuid dest-duplex-stream)
+    (msg/discovery! src-router)
+    (msg/discovery! dest-router)))
 
 (comment
 
   (def router-one (make-router "r1"))
   (def router-two (make-router "r2"))
-  (attach! router-one (get-in router-two [:streams :incoming]))
-
+  (msg/discovery! router-one)
+  (attach-local-routers! router-one router-two)
 
   )
