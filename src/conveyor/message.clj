@@ -2,13 +2,17 @@
   (:require
     [manifold.stream :as s]))
 
-(defn make-message
-  [source-router message-type message]
-  {:type message-type
-   :router-stack [(:uuid source-router)]
-   :message message})
+(defn form-message
+  ([src-router msg-type]
+   (form-message src-router msg-type {}))
+  ([src-router msg-type addtional-fields]
+   (merge
+     {:type msg-type
+      :router-stack [(:uuid src-router)]}
+     addtional-fields)))
 
 (defn route-message
+  "Adds this router's UUID to the message router stack."
   [src-router message]
   (assoc
     message
@@ -18,12 +22,12 @@
       (:uuid src-router))))
 
 (defn make-discovery
-  [source-router]
-  (make-message source-router :discovery nil))
+  [src-router]
+  (form-message src-router :discovery))
 
 (defn make-announcement
-  [source-router]
-  (make-message source-router :announcement nil))
+  [src-router]
+  (form-message src-router :announcement))
 
 (defn discovery!
   [source-router]

@@ -7,10 +7,38 @@
   [router-name]
   {:name router-name
    :uuid (str (java.util.UUID/randomUUID))
+   :routing (atom {})
    :streams
    {:incoming (s/stream 32)
     :broadcast (s/stream 32)
     :attached (atom {})}})
+
+(defn discovery-handler!
+  "The fn that takes in a discovery message and handles it.
+  2 things happen.
+    A: The current router will update its routing table.
+    B: All connected routers sans the one who sent the message will get the
+       messaged passed on to them. The message will terminate when it hits a
+       loop."
+  [router message]
+  (let [router-stack (:router-stack message)
+        requesting-uuid (first router-stack)
+        reverse-route (vec (reverse router-stack))
+        router-set (set router-stack)
+        routed-message (msg/route-message router message)]
+    (swap!
+      (:routing router)
+      assoc
+      requesting-uuid
+      reverse-route)
+    (doseq [i (get-in router [:streams :attached])]
+      (when (contains? router-set (first i))
+        (s/put! (second i) routed-message)))
+    (s/put!
+      (get-in router [:streams :attached
+                      (first reverse-route)])
+      (msg/make-announcement router))
+    true))
 
 (defn connect-message-type
   [router-map message-type]
